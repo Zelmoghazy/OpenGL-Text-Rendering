@@ -1,6 +1,7 @@
 #version 330 core
 
 in vec2 fragTexCoord;  // Texture coordinates
+in vec3 Color;         // Fragment Color
 
 // Multiple outputs (important for subpixel rendering with blending)
 layout(location = 0) out vec4 outColor0;  // For the RGB color component
@@ -21,12 +22,14 @@ void main()
     }
     
     vec3 finalColor;
-    finalColor = uTextColor;
-/* 
+    finalColor = Color;
+    // finalColor = uTextColor;
+    /* 
     finalColor.r = 1.0 + 0.5 * sin(uTime * 1.0);
     finalColor.g = 1.0 + 0.5 * sin(uTime * 1.3 + 2.0);
     finalColor.b = 1.0 + 0.5 * sin(uTime * 1.7 + 4.0);
-*/
+    */
+
     outColor0 = vec4(finalColor, 1.0);
     
     outColor1 = vec4(texSample.rgb, alpha);

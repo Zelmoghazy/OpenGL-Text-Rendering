@@ -68,6 +68,7 @@ typedef struct
 {
     float x, y;     // Position
     float s, t;     // Texture coordinates
+    float r, g, b;  // Color
 }Vertex;
 #pragma pack(pop)
 
@@ -516,6 +517,25 @@ struct Text
         return nullptr;  // Character not found
     }
 
+    float getWordWidth(const std::string& word)
+    {
+        float wordWidth = 0.0f;
+        for (char c : word) 
+        {
+            if (c == ' ') {
+                wordWidth += (ftFace->glyph->advance.x >> 6);
+                continue;
+            }
+            
+            const GlyphData* glyph = findGlyph(c);
+            if (glyph) {
+                wordWidth += glyph->advance;
+            }
+        }
+
+        return wordWidth;
+    }
+
     void wrapText(std::string& text) 
     {
         if (text.empty()) {
@@ -527,6 +547,7 @@ struct Text
         std::vector<std::string> words;
         std::string currentWord;
         
+        // Extract words (delimited by either newline or space)
         for (size_t i = 0; i < text.length(); ++i) 
         {
             char c = text[i];
@@ -538,6 +559,8 @@ struct Text
                     currentWord.clear();
                 }
                 
+                // user added new lines and spaces
+                // add them back
                 if (c == '\n') {
                     words.push_back("\n");
                 } else {
@@ -550,18 +573,21 @@ struct Text
             }
         }
         
+        // dont forget the last word
         if (!currentWord.empty()) {
             words.push_back(currentWord);
         }
         
         std::string wrappedText;
         std::string currentLine;
+
         float lineWidth = 0.0f;
         
         for (size_t i = 0; i < words.size(); ++i) 
         {
             const std::string& word = words[i];
             
+            // user added newline is left untouched
             if (word == "\n") {
                 wrappedText += currentLine + "\n";
                 currentLine = "";
@@ -569,21 +595,11 @@ struct Text
                 continue;
             }
             
-            float wordWidth = 0.0f;
-            for (char c : word) 
-            {
-                if (c == ' ') {
-                    wordWidth += (ftFace->glyph->advance.x >> 6);
-                    continue;
-                }
-                
-                const GlyphData* glyph = findGlyph(c);
-                if (glyph) {
-                    wordWidth += glyph->advance;
-                }
-            }
+            // Calulate each word length
+            float wordWidth = getWordWidth(word);
             
-            if (lineWidth + wordWidth <= availableWidth || currentLine.empty()) 
+            if (lineWidth + wordWidth <= availableWidth ||
+                currentLine.empty()) 
             {
                 currentLine += word;
                 lineWidth += wordWidth;
@@ -595,6 +611,7 @@ struct Text
                 lineWidth = wordWidth;
             }
         }
+
         // Add the last line if there is one
         if (!currentLine.empty()) {
             wrappedText += currentLine;
@@ -670,6 +687,9 @@ struct Text
                 currentX += (ftFace->glyph->advance.x >> 6);
                 continue;
             }
+
+            // Color of current character
+            glm::vec3 charColor = glm::vec3(0.31f, 0.706f, 0.965f);
             
             float x0 = currentX + glyphs[glyphIndex].x;
             float y0 = currentY + ascender - glyphs[glyphIndex].y - descender;
@@ -697,24 +717,36 @@ struct Text
             vertices[4*charIndex + 0].y = y0;
             vertices[4*charIndex + 0].s = glyphs[glyphIndex].s0;
             vertices[4*charIndex + 0].t = glyphs[glyphIndex].t0;
+            vertices[4*charIndex + 0].r = charColor.r;
+            vertices[4*charIndex + 0].g = charColor.g;
+            vertices[4*charIndex + 0].b = charColor.b;
             
             // Bottom-left vertex
             vertices[4*charIndex + 1].x = x0;
             vertices[4*charIndex + 1].y = y1;
             vertices[4*charIndex + 1].s = glyphs[glyphIndex].s0;
             vertices[4*charIndex + 1].t = glyphs[glyphIndex].t1;
+            vertices[4*charIndex + 1].r = charColor.r;
+            vertices[4*charIndex + 1].g = charColor.g;
+            vertices[4*charIndex + 1].b = charColor.b;
             
             // Bottom-right vertex
             vertices[4*charIndex + 2].x = x1;
             vertices[4*charIndex + 2].y = y1;
             vertices[4*charIndex + 2].s = glyphs[glyphIndex].s1;
             vertices[4*charIndex + 2].t = glyphs[glyphIndex].t1;
+            vertices[4*charIndex + 2].r = charColor.r;
+            vertices[4*charIndex + 2].g = charColor.g;
+            vertices[4*charIndex + 2].b = charColor.b;
             
             // Top-right vertex
             vertices[4*charIndex + 3].x = x1;
             vertices[4*charIndex + 3].y = y0;
             vertices[4*charIndex + 3].s = glyphs[glyphIndex].s1;
             vertices[4*charIndex + 3].t = glyphs[glyphIndex].t0;
+            vertices[4*charIndex + 3].r = charColor.r;
+            vertices[4*charIndex + 3].g = charColor.g;
+            vertices[4*charIndex + 3].b = charColor.b;
             
             indices[6*charIndex + 0] = 4*charIndex + 0; // Top-left
             indices[6*charIndex + 1] = 4*charIndex + 1; // Bottom-left
@@ -746,11 +778,20 @@ struct Text
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint),
                      indices.data(), GL_STATIC_DRAW);
         
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+        // Vertex position
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                             (void*)0);
         glEnableVertexAttribArray(0);
         
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(2 * sizeof(float)));
+        // Texture coordinates
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), 
+                             (void*)(2 * sizeof(float)));
         glEnableVertexAttribArray(1);
+
+        // Color
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 
+                             (void*)(4 * sizeof(float)));
+        glEnableVertexAttribArray(2);
     }
 
     void draw()
@@ -1006,7 +1047,7 @@ int main(void)
     init_GL();
     ui = new Ui(gc.window);
 
-    Text text("..\\assets\\CaskaydiaCoveNerdFont-Regular.ttf", 24);
+    Text text("..\\assets\\CaskaydiaCoveNerdFont-Regular.ttf", 48);
     text.createASCIIAtlas();
     
     while (!glfwWindowShouldClose(gc.window)) 
